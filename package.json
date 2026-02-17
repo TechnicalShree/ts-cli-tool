@@ -1,0 +1,13 @@
+{
+  "name": "cli-tool",
+  "version": "1.0.0",
+  "description": "My custom CLI tool",
+  "main": "index.js",
+  "bin": {
+    "mycli": "./index.js"
+  },
+  "keywords": [],
+  "author": "Krushna Raut",
+  "license": "ISC",
+  "type": "module"
+}
