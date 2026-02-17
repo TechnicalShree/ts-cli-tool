@@ -2,10 +2,17 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { tmpdir } from "node:os";
 import type { CommandContext, Config, EnvDetection, FixStep, RunReport } from "../types.js";
+import type { StepHooks } from "../ui/renderer.js";
 import { detectEnvironment } from "./detectEnvironment.js";
 import { buildPlan } from "./planBuilder.js";
 import { executeSteps } from "./executor.js";
 import { ensureAutofixInGitignore, ensureWritableDir } from "../utils/fs.js";
+
+export interface RunCallbacks {
+  onDetection?(detection: EnvDetection): void;
+  onPlanReady?(steps: FixStep[]): void;
+  stepHooks?: StepHooks;
+}
 
 function suggestNextAction(detection: EnvDetection): string {
   if (detection.node.detected) return "npm run dev";
@@ -76,8 +83,10 @@ export async function runAutoFix(
   ctx: CommandContext,
   config: Config,
   reportDir: string,
+  callbacks?: RunCallbacks,
 ): Promise<{ report: RunReport; gitignoreUpdated: boolean }> {
   const detection = await detectEnvironment(ctx.cwd, config);
+  callbacks?.onDetection?.(detection);
 
   const runAll = await maybeConfirmPolyglot(ctx, detection);
   if (!runAll) {
@@ -86,13 +95,14 @@ export async function runAutoFix(
 
   const plan = buildPlan(detection, config, ctx.flags);
   const guarded = applyPolyglotGuard(ctx, detection, plan);
+  callbacks?.onPlanReady?.(guarded.steps);
 
   const desiredSnapshotDir = path.resolve(ctx.cwd, config.output.snapshot_dir);
   const writable = await ensureWritableDir(desiredSnapshotDir);
   const snapshotDir = writable ? desiredSnapshotDir : path.join(tmpdir(), "autofix", ctx.runId);
   if (!writable) await ensureWritableDir(snapshotDir);
 
-  const executed = await executeSteps(ctx, guarded.steps, snapshotDir);
+  const executed = await executeSteps(ctx, guarded.steps, snapshotDir, callbacks?.stepHooks);
   const gitignoreUpdated = await ensureAutofixInGitignore(ctx.cwd);
   if (gitignoreUpdated) guarded.warnings.push("Added .autofix/ to .gitignore");
   if (!writable) guarded.warnings.push(`.autofix not writable; using temp snapshot dir: ${snapshotDir}`);

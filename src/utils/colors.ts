@@ -1,5 +1,6 @@
 const reset = "\u001b[0m";
 const bold = "\u001b[1m";
+const dim = "\u001b[2m";
 const green = "\u001b[32m";
 const red = "\u001b[31m";
 const yellow = "\u001b[33m";
@@ -16,5 +17,6 @@ export function style(enabled: boolean) {
     warn: (v: string) => wrap(enabled, yellow, v),
     err: (v: string) => wrap(enabled, red, v),
     strong: (v: string) => wrap(enabled, bold, v),
+    dim: (v: string) => wrap(enabled, dim, v),
   };
 }

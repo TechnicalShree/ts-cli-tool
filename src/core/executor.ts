@@ -2,6 +2,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { CommandContext, FixStep } from "../types.js";
+import type { StepHooks } from "../ui/renderer.js";
 import { runShellCommand } from "../utils/process.js";
 import { canAutoRunDestructive, shouldPromptForDestructive } from "./safety.js";
 import { snapshotPathsForStep } from "./snapshots.js";
@@ -48,8 +49,14 @@ async function verifyPortsReleased(cwd: string, commands: string[]): Promise<{ o
   return { ok: false, details: `remaining pid(s) -> ${detail}. Try: lsof -ti :<port> | xargs kill -9` };
 }
 
-export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapshotDir: string): Promise<FixStep[]> {
+export async function executeSteps(
+  ctx: CommandContext,
+  steps: FixStep[],
+  snapshotDir: string,
+  hooks?: StepHooks,
+): Promise<FixStep[]> {
   const output: FixStep[] = [];
+  const confirmFn = hooks?.onConfirm ?? askConfirmation;
 
   for (const step of steps) {
     const current = { ...step };
@@ -64,10 +71,11 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
 
     if (step.destructive && !canAutoRunDestructive(ctx)) {
       if (shouldPromptForDestructive(ctx, step)) {
-        const ok = await askConfirmation(`Run destructive step: ${step.title}?`);
+        const ok = await confirmFn(`Run destructive step: ${step.title}?`);
         if (!ok) {
           current.status = "proposed";
           current.proposedReason = "Needs explicit approval";
+          hooks?.onStepEnd(current);
           output.push(current);
           continue;
         }
@@ -76,12 +84,14 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
         current.proposedReason = ctx.interactive
           ? "Needs --deep or --approve"
           : "Non-interactive mode: destructive step skipped";
+        hooks?.onStepEnd(current);
         output.push(current);
         continue;
       }
     }
 
     current.status = "running";
+    hooks?.onStepStart(current);
 
     if (step.destructive) {
       const snaps = await snapshotPathsForStep(ctx.cwd, path.join(snapshotDir, ctx.runId), step.id, snapshotCandidates(step));
@@ -91,7 +101,7 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
     let failed = false;
     const commandOutputs: string[] = [];
     for (const command of step.commands) {
-      if (ctx.flags.verbose) console.log(`  ▸ ${command}`);
+      if (ctx.flags.verbose) console.log(`  \u25B8 ${command}`);
       const result = await runShellCommand(command, ctx.cwd);
       commandOutputs.push(`$ ${command}\n${result.stdout}${result.stderr}`.trim());
       if (ctx.flags.verbose) {
@@ -110,6 +120,7 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
         current.status = "failed";
         current.error = portCheck.details;
         current.output = commandOutputs.join("\n\n");
+        hooks?.onStepEnd(current);
         output.push(current);
         continue;
       }
@@ -124,6 +135,7 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
       current.status = "success";
     }
 
+    hooks?.onStepEnd(current);
     output.push(current);
   }
 

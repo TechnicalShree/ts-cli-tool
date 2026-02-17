@@ -1,9 +1,27 @@
-import type { RunReport } from "../types.js";
+import type { CliFlags, RunReport } from "../types.js";
 import { style } from "../utils/colors.js";
+
+function modeBanner(command: string, flags: CliFlags, useColor: boolean): string {
+  const c = style(useColor);
+  const tags: string[] = [];
+  if (flags.dryRun && command !== "plan") tags.push("dry-run");
+  if (flags.deep) tags.push("deep");
+  if (flags.approve) tags.push("approve");
+  if (flags.forceFresh) tags.push("force-fresh");
+  if (flags.focus !== "all") tags.push(`focus:${flags.focus}`);
+  if (flags.killPorts) tags.push("kill-ports");
+  if (flags.verbose) tags.push("verbose");
+  if (flags.quiet) tags.push("quiet");
+  const tagStr = tags.length > 0 ? ` ${c.dim(`[${tags.join(", ")}]`)}` : "";
+  return c.strong(`auto-fix · ${command}`) + tagStr;
+}
 
 export function renderSummary(report: RunReport, useColor: boolean): string {
   const c = style(useColor);
   const lines: string[] = [];
+
+  lines.push(modeBanner(report.command, report.flags, useColor));
+  lines.push("");
 
   lines.push(c.title("Detected environment"));
   lines.push(`- ${report.summary.detectedEnvironment.join(", ") || "None"}`);
@@ -46,6 +64,8 @@ export function renderSummary(report: RunReport, useColor: boolean): string {
 export function renderQuietSummary(report: RunReport, useColor: boolean): string {
   const c = style(useColor);
   const lines: string[] = [];
+  lines.push(modeBanner(report.command, report.flags, useColor));
+  lines.push("");
   lines.push(c.title("Results"));
   lines.push(
     `- Success: ${report.summary.succeeded}, Failed: ${report.summary.failed}, Skipped/Proposed: ${report.summary.skipped}`,

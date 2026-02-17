@@ -10,6 +10,7 @@ import { isInteractive } from "./utils/tty.js";
 import type { CliFlags, CommandContext } from "./types.js";
 import { readJsonFile } from "./utils/fs.js";
 import { undoLatest } from "./core/undo.js";
+import { createRenderer } from "./ui/renderer.js";
 
 function makeRunId(): string {
   return `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;
@@ -141,63 +142,101 @@ async function main() {
     printHelp();
     return;
   }
+
   const cwd = process.cwd();
+  const interactive = isInteractive();
+  const ui = createRenderer(flags, interactive);
 
   const ctx: CommandContext = {
     command,
     cwd,
     runId: makeRunId(),
     flags,
-    interactive: isInteractive(),
+    interactive,
   };
 
   const { config } = await loadConfig(cwd);
   const reportDir = path.resolve(cwd, flags.reportPath ?? config.output.report_dir);
 
+  // ── undo ──
   if (command === "undo") {
+    ui.intro("undo");
+    ui.startTask("Reading latest report\u2026");
     const { report, entries } = await undoLatest(path.join(reportDir, "latest.json"), cwd);
     if (!report) {
-      console.error("No previous report found for undo.");
+      ui.stopTask("\u2717  No previous report found");
+      if (!ui.isRich) console.error("No previous report found for undo.");
       process.exitCode = 1;
       return;
     }
-    console.log("Detected environment");
-    console.log(`- ${report.summary.detectedEnvironment.join(", ")}`);
-    console.log("Plan/Actions");
-    console.log(`- Attempted undo for ${entries.length} item(s)`);
-    console.log("Results");
+    ui.stopTask("\u2714  Report loaded");
+    ui.showDetection(report.detection);
     const failed = entries.reduce((acc, e) => acc + e.failed.length, 0);
     const restored = entries.reduce((acc, e) => acc + e.restored.length, 0);
     const missing = entries.reduce((acc, e) => acc + e.missingSnapshot.length, 0);
     const skipped = entries.reduce((acc, e) => acc + e.skipped.length, 0);
-    console.log(`- Restored: ${restored}, Skipped: ${skipped}, Missing snapshot: ${missing}, Failed: ${failed}`);
-    const next = entries.find((e) => e.nextBestAction)?.nextBestAction ?? "Run auto-fix doctor to validate and recover manually";
-    console.log("Next best action");
-    console.log(`- ${next}`);
+    ui.showUndoResults(restored, skipped, missing, failed);
+    if (!ui.isRich) {
+      console.log(`Restored: ${restored}, Skipped: ${skipped}, Missing snapshot: ${missing}, Failed: ${failed}`);
+    }
+    const next = entries.find((e) => e.nextBestAction)?.nextBestAction ?? "Run auto-fix doctor to validate";
+    ui.outro(next);
+    if (!ui.isRich) console.log(`Next: ${next}`);
     return;
   }
 
+  // ── report (read-only) ──
   if (command === "report" && !flags.run) {
+    ui.intro("report");
     const latest = await readJsonFile(path.join(reportDir, "latest.json"));
     if (!latest) {
-      console.error("No report found at latest.json");
+      ui.showReportInfo("No report found at latest.json");
+      if (!ui.isRich) console.error("No report found at latest.json");
       process.exitCode = 1;
       return;
     }
-    if (flags.json) console.log(JSON.stringify(latest, null, 2));
-    else console.log("Use --json to print machine-readable report.");
+    if (flags.json) {
+      console.log(JSON.stringify(latest, null, 2));
+    } else {
+      ui.showReportInfo("Report loaded. Use --json to print machine-readable output.");
+      if (!ui.isRich) console.log("Use --json to print machine-readable report.");
+    }
+    ui.outro("auto-fix report --json");
     return;
   }
 
+  // ── run / doctor / plan ──
   const effectiveCommand = command === "report" ? "run" : command;
-  const result = await runAutoFix({ ...ctx, command: effectiveCommand }, config, reportDir);
+  ui.intro(effectiveCommand);
+
+  const callbacks = ui.isRich
+    ? {
+      onDetection: (det: import("./types.js").EnvDetection) => ui.showDetection(det),
+      onPlanReady: (steps: import("./types.js").FixStep[]) => {
+        if (effectiveCommand === "plan" || effectiveCommand === "doctor") {
+          ui.showPlan(steps, effectiveCommand === "doctor" ? "Diagnosis" : undefined);
+        }
+      },
+      stepHooks: effectiveCommand === "run" ? ui.createStepHooks() : undefined,
+    }
+    : undefined;
+
+  const result = await runAutoFix({ ...ctx, command: effectiveCommand }, config, reportDir, callbacks);
   const report = result.report;
   await writeRunReport(report, reportDir);
 
-  if (flags.quiet) {
-    console.log(renderQuietSummary(report, !flags.noColor));
-  } else {
-    console.log(renderSummary(report, !flags.noColor));
+  if (ui.isRich) {
+    ui.showResults(report.summary);
+    ui.outro(report.summary.nextBestAction);
+  }
+
+  // Fallback text output for non-rich modes
+  if (!ui.isRich) {
+    if (flags.quiet) {
+      console.log(renderQuietSummary(report, !flags.noColor));
+    } else {
+      console.log(renderSummary(report, !flags.noColor));
+    }
   }
 
   if (flags.json || command === "report") {
