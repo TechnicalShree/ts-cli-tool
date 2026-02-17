@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadConfig } from "./config/loadConfig.js";
 import { runAutoFix } from "./core/run.js";
-import { renderSummary } from "./report/renderSummary.js";
+import { renderSummary, renderQuietSummary } from "./report/renderSummary.js";
 import { writeRunReport } from "./report/writeReport.js";
 import { isInteractive } from "./utils/tty.js";
 import type { CliFlags, CommandContext } from "./types.js";
@@ -59,9 +59,13 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
         (v): v is "lint" | "test" | "format" => v === "lint" || v === "test" || v === "format",
       );
       i += 1;
-    } else if (arg === "--kill-ports" && args[i + 1]) {
-      flags.killPorts = parseCsv(args[i + 1]).map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0);
-      i += 1;
+    } else if (arg === "--kill-ports") {
+      if (args[i + 1] && !args[i + 1].startsWith("--")) {
+        flags.killPorts = parseCsv(args[i + 1]).map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0);
+        i += 1;
+      } else {
+        flags.killPorts = [];
+      }
     } else if (arg === "--report-path" && args[i + 1]) {
       flags.reportPath = args[i + 1];
       i += 1;
@@ -123,7 +127,9 @@ async function main() {
   const report = await runAutoFix({ ...ctx, command: effectiveCommand }, config);
   await writeRunReport(report, reportDir);
 
-  if (!flags.quiet) {
+  if (flags.quiet) {
+    console.log(renderQuietSummary(report, !flags.noColor));
+  } else {
     console.log(renderSummary(report, !flags.noColor));
   }
 

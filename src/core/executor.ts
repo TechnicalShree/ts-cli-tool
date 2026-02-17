@@ -60,8 +60,15 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
     let failed = false;
     const commandOutputs: string[] = [];
     for (const command of step.commands) {
+      if (ctx.flags.verbose) {
+        console.log(`  ▸ ${command}`);
+      }
       const result = await runShellCommand(command, ctx.cwd);
       commandOutputs.push(`$ ${command}\n${result.stdout}${result.stderr}`.trim());
+      if (ctx.flags.verbose) {
+        if (result.stdout) console.log(result.stdout.trimEnd());
+        if (result.stderr) console.error(result.stderr.trimEnd());
+      }
       if (!result.success) {
         failed = true;
         break;

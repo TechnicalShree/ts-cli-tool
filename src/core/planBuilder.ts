@@ -5,7 +5,8 @@ import { buildDockerSteps } from "../subsystems/docker.js";
 import { buildCheckSteps } from "../subsystems/checks.js";
 
 export function buildPortSteps(flags: CliFlags, config: Config): FixStep[] {
-  const ports = flags.killPorts && flags.killPorts.length > 0 ? flags.killPorts : [...config.ports.default, ...config.ports.extra];
+  if (!flags.killPorts) return [];
+  const ports = flags.killPorts.length > 0 ? flags.killPorts : [...config.ports.default, ...config.ports.extra];
   if (ports.length === 0) return [];
   return [
     {
@@ -34,6 +35,11 @@ export function buildPlan(detection: EnvDetection, config: Config, flags: CliFla
     steps.push(...buildDockerSteps(detection, config, flags));
   }
 
-  steps.push(...buildCheckSteps(detection, config, flags));
+  if (flags.focus === "all" || flags.focus === "node") {
+    steps.push(...buildCheckSteps(detection, config, flags, "node"));
+  }
+  if (flags.focus === "all" || flags.focus === "python") {
+    steps.push(...buildCheckSteps(detection, config, flags, "python"));
+  }
   return steps;
 }

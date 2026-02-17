@@ -34,7 +34,7 @@ export function buildDockerSteps(detection: EnvDetection, config: Config, flags:
     });
   }
 
-  if (flags.deep || config.docker.prune) {
+  if (flags.deep || flags.approve || config.docker.prune) {
     steps.push({
       id: "docker-prune",
       title: "Prune docker system",

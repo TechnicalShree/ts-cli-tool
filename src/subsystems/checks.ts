@@ -89,7 +89,14 @@ function pythonChecks(
   return steps;
 }
 
-export function buildCheckSteps(detection: EnvDetection, config: Config, flags: CliFlags): FixStep[] {
+export function buildCheckSteps(detection: EnvDetection, config: Config, flags: CliFlags, focusSubsystem?: "node" | "python"): FixStep[] {
   const selected = flags.checks ?? config.checks.default;
-  return [...nodeChecks(detection, selected), ...pythonChecks(detection, config, selected)];
+  const steps: FixStep[] = [];
+  if (!focusSubsystem || focusSubsystem === "node") {
+    steps.push(...nodeChecks(detection, selected));
+  }
+  if (!focusSubsystem || focusSubsystem === "python") {
+    steps.push(...pythonChecks(detection, config, selected));
+  }
+  return steps;
 }
