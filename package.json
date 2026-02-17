@@ -1,13 +1,32 @@
 {
-  "name": "cli-tool",
+  "name": "auto-fix",
   "version": "1.0.0",
-  "description": "My custom CLI tool",
-  "main": "index.js",
+  "description": "Detect, diagnose, and safely fix common local dev environment issues",
+  "main": "dist/cli.js",
   "bin": {
-    "mycli": "./index.js"
+    "auto-fix": "./dist/cli.js"
   },
-  "keywords": [],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "npm run build --silent && node --test",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "cli",
+    "autofix",
+    "developer-tools"
+  ],
   "author": "Krushna Raut",
   "license": "ISC",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
 }
