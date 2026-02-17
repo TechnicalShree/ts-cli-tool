@@ -32,6 +32,7 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
     dryRun: false,
     deep: false,
     approve: false,
+    forceFresh: false,
     focus: "all",
     verbose: false,
     quiet: false,
@@ -45,6 +46,7 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
     if (arg === "--dry-run") flags.dryRun = true;
     else if (arg === "--deep") flags.deep = true;
     else if (arg === "--approve") flags.approve = true;
+    else if (arg === "--force-fresh") flags.forceFresh = true;
     else if (arg === "--verbose") flags.verbose = true;
     else if (arg === "--quiet") flags.quiet = true;
     else if (arg === "--no-color") flags.noColor = true;
@@ -101,13 +103,16 @@ async function main() {
     console.log("Detected environment");
     console.log(`- ${report.summary.detectedEnvironment.join(", ")}`);
     console.log("Plan/Actions");
-    console.log(`- Attempted undo for ${entries.length} snapshot group(s)`);
+    console.log(`- Attempted undo for ${entries.length} item(s)`);
     console.log("Results");
     const failed = entries.reduce((acc, e) => acc + e.failed.length, 0);
     const restored = entries.reduce((acc, e) => acc + e.restored.length, 0);
-    console.log(`- Restored: ${restored}, Failed: ${failed}`);
+    const missing = entries.reduce((acc, e) => acc + e.missingSnapshot.length, 0);
+    const skipped = entries.reduce((acc, e) => acc + e.skipped.length, 0);
+    console.log(`- Restored: ${restored}, Skipped: ${skipped}, Missing snapshot: ${missing}, Failed: ${failed}`);
+    const next = entries.find((e) => e.nextBestAction)?.nextBestAction ?? "Run auto-fix doctor to validate and recover manually";
     console.log("Next best action");
-    console.log("- Re-run auto-fix doctor to validate state");
+    console.log(`- ${next}`);
     return;
   }
 
@@ -124,7 +129,8 @@ async function main() {
   }
 
   const effectiveCommand = command === "report" ? "run" : command;
-  const report = await runAutoFix({ ...ctx, command: effectiveCommand }, config);
+  const result = await runAutoFix({ ...ctx, command: effectiveCommand }, config, reportDir);
+  const report = result.report;
   await writeRunReport(report, reportDir);
 
   if (flags.quiet) {

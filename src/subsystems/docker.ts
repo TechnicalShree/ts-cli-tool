@@ -15,9 +15,12 @@ export function buildDockerSteps(detection: EnvDetection, config: Config, flags:
       id: "docker-compose-down",
       title: "Run docker compose down",
       subsystem: "docker",
+      phase: "docker",
       rationale: "Reset stale compose state safely.",
       commands: [`${prefix} down`],
       destructive: false,
+      irreversible: false,
+      undoable: false,
       status: "planned",
     });
   }
@@ -27,9 +30,12 @@ export function buildDockerSteps(detection: EnvDetection, config: Config, flags:
       id: "docker-compose-rebuild",
       title: "Rebuild docker compose services",
       subsystem: "docker",
+      phase: "docker",
       rationale: "Rebuild services to resolve dirty container/image state.",
       commands: [`${prefix} up -d --build`],
       destructive: false,
+      irreversible: false,
+      undoable: false,
       status: "planned",
     });
   }
@@ -37,11 +43,16 @@ export function buildDockerSteps(detection: EnvDetection, config: Config, flags:
   if (flags.deep || flags.approve || config.docker.prune) {
     steps.push({
       id: "docker-prune",
-      title: "Prune docker system",
+      title: "IRREVERSIBLE: Prune docker system",
       subsystem: "docker",
+      phase: "docker",
       rationale: "Deep cleanup requested for stale docker artifacts.",
       commands: ["docker system prune -f"],
       destructive: true,
+      irreversible: true,
+      irreversibleReason: "cannot be snapshotted",
+      undoable: false,
+      undoHints: [{ action: "Rebuild services", command: `${prefix} up -d --build` }],
       status: "planned",
     });
   }

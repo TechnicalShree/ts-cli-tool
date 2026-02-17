@@ -1,7 +1,7 @@
 import path from "node:path";
 import { cp } from "node:fs/promises";
 import type { RunReport, UndoEntry } from "../types.js";
-import { readJsonFile } from "../utils/fs.js";
+import { fileExists, readJsonFile } from "../utils/fs.js";
 
 export async function undoLatest(reportPath: string, cwd: string): Promise<{ report: RunReport | null; entries: UndoEntry[] }> {
   const report = await readJsonFile<RunReport>(reportPath);
@@ -10,12 +10,30 @@ export async function undoLatest(reportPath: string, cwd: string): Promise<{ rep
   const entries: UndoEntry[] = [];
 
   for (const step of report.steps) {
-    if (!step.snapshotPaths || step.snapshotPaths.length === 0) continue;
-
     const restored: string[] = [];
     const failed: string[] = [];
+    const skipped: string[] = [];
+    const missingSnapshot: string[] = [];
+
+    if (!step.undoable || !step.snapshotPaths || step.snapshotPaths.length === 0) {
+      skipped.push("not undoable or no snapshot");
+      entries.push({
+        stepId: step.id,
+        snapshotPaths: step.snapshotPaths ?? [],
+        restored,
+        skipped,
+        missingSnapshot,
+        failed,
+        nextBestAction: step.undoHints?.[0]?.command,
+      });
+      continue;
+    }
 
     for (const snap of step.snapshotPaths) {
+      if (!(await fileExists(snap))) {
+        missingSnapshot.push(snap);
+        continue;
+      }
       const base = path.basename(snap);
       const target = path.join(cwd, base.replace(/_/g, "/"));
       try {
@@ -26,7 +44,15 @@ export async function undoLatest(reportPath: string, cwd: string): Promise<{ rep
       }
     }
 
-    entries.push({ stepId: step.id, snapshotPaths: step.snapshotPaths, restored, failed });
+    entries.push({
+      stepId: step.id,
+      snapshotPaths: step.snapshotPaths,
+      restored,
+      skipped,
+      missingSnapshot,
+      failed,
+      nextBestAction: step.undoHints?.[0]?.command,
+    });
   }
 
   return { report, entries };

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { parse as parseYaml } from "yaml";
 import type { Config, EnvDetection } from "../types.js";
 import { fileExists } from "../utils/fs.js";
 
@@ -8,6 +9,26 @@ async function detectPackageManager(cwd: string): Promise<"npm" | "pnpm" | "yarn
   if (await fileExists(path.join(cwd, "yarn.lock"))) return "yarn";
   if (await fileExists(path.join(cwd, "package-lock.json"))) return "npm";
   return "unknown";
+}
+
+async function detectLockfileCorruption(cwd: string): Promise<boolean> {
+  const pkgLock = path.join(cwd, "package-lock.json");
+  if (await fileExists(pkgLock)) {
+    try {
+      JSON.parse(await readFile(pkgLock, "utf8"));
+    } catch {
+      return true;
+    }
+  }
+  const pnpmLock = path.join(cwd, "pnpm-lock.yaml");
+  if (await fileExists(pnpmLock)) {
+    try {
+      parseYaml(await readFile(pnpmLock, "utf8"));
+    } catch {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function detectEnvironment(cwd: string, config: Config): Promise<EnvDetection> {
@@ -55,16 +76,13 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
     )
   ).filter((v): v is string => Boolean(v));
 
+  const lockfileCorrupted = await detectLockfileCorruption(cwd);
+
   const issues: string[] = [];
-  if (hasPackage && !(await fileExists(path.join(cwd, "node_modules")))) {
-    issues.push("node_modules directory missing");
-  }
-  if ((hasPyproject || requirements) && !venvExists) {
-    issues.push("python virtual environment missing");
-  }
-  if (composeFile) {
-    issues.push("docker compose project detected (state may require refresh)");
-  }
+  if (hasPackage && !(await fileExists(path.join(cwd, "node_modules")))) issues.push("node_modules directory missing");
+  if ((hasPyproject || requirements) && !venvExists) issues.push("python virtual environment missing");
+  if (composeFile) issues.push("docker compose project detected (state may require refresh)");
+  if (lockfileCorrupted) issues.push("lockfile appears corrupted; frozen installs likely to fail");
 
   return {
     node: {
@@ -74,6 +92,7 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
       hasNext,
       hasVite,
       lockfiles,
+      lockfileCorrupted,
       packageScripts: scripts,
     },
     python: {
@@ -83,10 +102,7 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
       venvPath: config.python.venv_path,
       venvExists,
     },
-    docker: {
-      detected: Boolean(composeFile),
-      composeFile,
-    },
+    docker: { detected: Boolean(composeFile), composeFile },
     issues,
   };
 }

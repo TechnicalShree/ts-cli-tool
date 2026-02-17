@@ -13,9 +13,12 @@ export function buildPortSteps(flags: CliFlags, config: Config): FixStep[] {
       id: "ports-cleanup",
       title: "Kill processes using configured ports",
       subsystem: "meta",
+      phase: "ports",
       rationale: "Port conflict cleanup before subsystem repair.",
       commands: ports.map((port) => `lsof -ti :${port} | xargs kill -9`),
       destructive: false,
+      irreversible: false,
+      undoable: false,
       status: "planned",
     },
   ];
@@ -23,23 +26,21 @@ export function buildPortSteps(flags: CliFlags, config: Config): FixStep[] {
 
 export function buildPlan(detection: EnvDetection, config: Config, flags: CliFlags): FixStep[] {
   const steps: FixStep[] = [];
+
+  // strict order: ports -> docker -> node -> python -> checks(format, lint, test)
   steps.push(...buildPortSteps(flags, config));
 
-  if (flags.focus === "all" || flags.focus === "node") {
-    steps.push(...buildNodeSteps(detection, config, flags));
-  }
-  if (flags.focus === "all" || flags.focus === "python") {
-    steps.push(...buildPythonSteps(detection, config, flags));
-  }
-  if (flags.focus === "all" || flags.focus === "docker") {
-    steps.push(...buildDockerSteps(detection, config, flags));
-  }
+  if (flags.focus === "all" || flags.focus === "docker") steps.push(...buildDockerSteps(detection, config, flags));
+  if (flags.focus === "all" || flags.focus === "node") steps.push(...buildNodeSteps(detection, config, flags));
+  if (flags.focus === "all" || flags.focus === "python") steps.push(...buildPythonSteps(detection, config, flags));
 
-  if (flags.focus === "all" || flags.focus === "node") {
-    steps.push(...buildCheckSteps(detection, config, flags, "node"));
-  }
-  if (flags.focus === "all" || flags.focus === "python") {
-    steps.push(...buildCheckSteps(detection, config, flags, "python"));
-  }
+  const checks: FixStep[] = [];
+  if (flags.focus === "all" || flags.focus === "node") checks.push(...buildCheckSteps(detection, config, flags, "node"));
+  if (flags.focus === "all" || flags.focus === "python") checks.push(...buildCheckSteps(detection, config, flags, "python"));
+
+  const order = { format: 1, lint: 2, test: 3 } as const;
+  checks.sort((a, b) => (order[a.checkKind ?? "test"] - order[b.checkKind ?? "test"]));
+  steps.push(...checks);
+
   return steps;
 }

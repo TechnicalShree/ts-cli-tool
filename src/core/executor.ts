@@ -1,5 +1,6 @@
 import path from "node:path";
 import readline from "node:readline/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { CommandContext, FixStep } from "../types.js";
 import { runShellCommand } from "../utils/process.js";
 import { canAutoRunDestructive, shouldPromptForDestructive } from "./safety.js";
@@ -13,10 +14,38 @@ async function askConfirmation(question: string): Promise<boolean> {
 }
 
 function snapshotCandidates(step: FixStep): string[] {
-  if (step.id.includes("node-modules")) return ["node_modules"];
   if (step.id.includes("lockfiles")) return ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"];
-  if (step.id.includes("python-reset-venv")) return [".venv"];
   return [];
+}
+
+async function verifyPortsReleased(cwd: string, commands: string[]): Promise<{ ok: boolean; details: string }> {
+  const ports = commands
+    .map((c) => c.match(/:(\d+)/)?.[1])
+    .filter((v): v is string => Boolean(v));
+
+  const maxMs = 2000;
+  const intervalMs = 100;
+  let elapsed = 0;
+
+  while (elapsed <= maxMs) {
+    const checks = await Promise.all(ports.map((p) => runShellCommand(`lsof -ti :${p}`, cwd)));
+    const busy = checks
+      .map((result, idx) => ({ port: ports[idx], pids: result.stdout.trim().split(/\s+/).filter(Boolean) }))
+      .filter((x) => x.pids.length > 0);
+
+    if (busy.length === 0) {
+      await sleep(150);
+      return { ok: true, details: "ports confirmed free" };
+    }
+    await sleep(intervalMs);
+    elapsed += intervalMs;
+  }
+
+  const remaining = await Promise.all(ports.map((p) => runShellCommand(`lsof -ti :${p}`, cwd)));
+  const detail = remaining
+    .map((r, i) => `${ports[i]}: ${r.stdout.trim() || "none"}`)
+    .join(", ");
+  return { ok: false, details: `remaining pid(s) -> ${detail}. Try: lsof -ti :<port> | xargs kill -9` };
 }
 
 export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapshotDir: string): Promise<FixStep[]> {
@@ -25,8 +54,10 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
   for (const step of steps) {
     const current = { ...step };
 
+    if (ctx.flags.verbose) console.log(`[phase:${step.phase}] ${step.title}`);
+
     if (ctx.command === "doctor" || ctx.command === "plan" || ctx.flags.dryRun) {
-      current.status = "planned";
+      current.status = step.status === "proposed" ? "proposed" : "planned";
       output.push(current);
       continue;
     }
@@ -60,9 +91,7 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
     let failed = false;
     const commandOutputs: string[] = [];
     for (const command of step.commands) {
-      if (ctx.flags.verbose) {
-        console.log(`  ▸ ${command}`);
-      }
+      if (ctx.flags.verbose) console.log(`  ▸ ${command}`);
       const result = await runShellCommand(command, ctx.cwd);
       commandOutputs.push(`$ ${command}\n${result.stdout}${result.stderr}`.trim());
       if (ctx.flags.verbose) {
@@ -73,6 +102,18 @@ export async function executeSteps(ctx: CommandContext, steps: FixStep[], snapsh
         failed = true;
         break;
       }
+    }
+
+    if (!failed && step.id === "ports-cleanup") {
+      const portCheck = await verifyPortsReleased(ctx.cwd, step.commands);
+      if (!portCheck.ok) {
+        current.status = "failed";
+        current.error = portCheck.details;
+        current.output = commandOutputs.join("\n\n");
+        output.push(current);
+        continue;
+      }
+      commandOutputs.push(portCheck.details);
     }
 
     current.output = commandOutputs.join("\n\n");

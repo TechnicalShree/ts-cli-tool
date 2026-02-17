@@ -1,19 +1,16 @@
 export type Subsystem = "node" | "python" | "docker" | "checks" | "meta";
 
-export type StepStatus =
-  | "planned"
-  | "proposed"
-  | "running"
-  | "success"
-  | "failed"
-  | "skipped";
+export type StepStatus = "planned" | "proposed" | "running" | "success" | "failed" | "skipped" | "partial";
+
+export type CheckKind = "lint" | "test" | "format";
 
 export interface CliFlags {
   dryRun: boolean;
   deep: boolean;
   approve: boolean;
+  forceFresh: boolean;
   focus: "node" | "python" | "docker" | "all";
-  checks?: Array<"lint" | "test" | "format">;
+  checks?: CheckKind[];
   killPorts?: number[];
   verbose: boolean;
   quiet: boolean;
@@ -31,13 +28,24 @@ export interface CommandContext {
   interactive: boolean;
 }
 
+export interface UndoHint {
+  action: string;
+  command?: string;
+}
+
 export interface FixStep {
   id: string;
   title: string;
   subsystem: Subsystem;
+  phase: "detect" | "ports" | "docker" | "node" | "python" | "checks";
+  checkKind?: CheckKind;
   rationale: string;
   commands: string[];
   destructive: boolean;
+  irreversible: boolean;
+  undoable: boolean;
+  irreversibleReason?: string;
+  undoHints?: UndoHint[];
   snapshotPaths?: string[];
   status: StepStatus;
   output?: string;
@@ -54,6 +62,7 @@ export interface EnvDetection {
     hasNext: boolean;
     hasVite: boolean;
     lockfiles: string[];
+    lockfileCorrupted: boolean;
     packageScripts: string[];
   };
   python: {
@@ -89,7 +98,7 @@ export interface Config {
     rebuild: boolean;
     prune: boolean;
   };
-  checks: { default: Array<"lint" | "format" | "test"> };
+  checks: { default: CheckKind[] };
   output: {
     report_dir: string;
     snapshot_dir: string;
@@ -104,13 +113,19 @@ export interface RunSummary {
   failed: number;
   skipped: number;
   nextBestAction: string;
+  undoCoverage: "full" | "partial";
+  irreversibleStepIds: string[];
+  warnings: string[];
 }
 
 export interface UndoEntry {
   stepId: string;
   snapshotPaths: string[];
   restored: string[];
+  skipped: string[];
+  missingSnapshot: string[];
   failed: string[];
+  nextBestAction?: string;
 }
 
 export interface RunReport {
@@ -124,4 +139,9 @@ export interface RunReport {
   steps: FixStep[];
   summary: RunSummary;
   undo: UndoEntry[];
+  storage: {
+    reportDir: string;
+    snapshotDir: string;
+    fallbackToTemp: boolean;
+  };
 }

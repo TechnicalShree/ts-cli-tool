@@ -24,9 +24,12 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
       id: "python-create-venv",
       title: "Create Python virtual environment",
       subsystem: "python",
+      phase: "python",
       rationale: "Python project detected without configured virtual environment.",
       commands: [`python3 -m venv ${config.python.venv_path}`],
       destructive: false,
+      irreversible: false,
+      undoable: false,
       status: "planned",
     });
   }
@@ -36,9 +39,12 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
       id: "python-install-deps",
       title: "Install Python dependencies",
       subsystem: "python",
+      phase: "python",
       rationale: "Dependency refresh to resolve environment drift.",
       commands: [installCommand(config.python.install.prefer)],
       destructive: false,
+      irreversible: false,
+      undoable: false,
       status: "planned",
     });
   }
@@ -46,11 +52,16 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
   if (flags.deep) {
     steps.push({
       id: "python-reset-venv",
-      title: "Reset Python virtual environment",
+      title: "IRREVERSIBLE: Reset Python virtual environment",
       subsystem: "python",
+      phase: "python",
       rationale: "Deep cleanup for persistent Python environment drift.",
       commands: [`rm -rf ${config.python.venv_path}`, `python3 -m venv ${config.python.venv_path}`],
       destructive: true,
+      irreversible: true,
+      irreversibleReason: "cannot restore environment state fully",
+      undoable: false,
+      undoHints: [{ action: "Reinstall dependencies", command: installCommand(config.python.install.prefer) }],
       status: "planned",
     });
   }

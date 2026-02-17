@@ -10,6 +10,7 @@ export async function snapshotPathsForStep(
 ): Promise<string[]> {
   const created: string[] = [];
   for (const candidate of candidates) {
+    if (candidate === "node_modules") continue;
     const source = path.join(cwd, candidate);
     if (!(await fileExists(source))) continue;
     const dest = path.join(snapshotRoot, stepId, candidate.replace(/[\\/:]/g, "_"));
