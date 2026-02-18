@@ -1,5 +1,5 @@
 {
-  "name": "auto-fix",
+  "name": "@technicalshree/auto-fix",
   "version": "1.1.0",
   "description": "Detect, diagnose, and safely fix common local dev environment issues",
   "main": "dist/cli.js",
@@ -16,7 +16,7 @@
     "README.md"
   ],
   "bin": {
-    "auto-fix": "./dist/cli.js"
+    "auto-fix": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -28,15 +28,31 @@
     "prepublishOnly": "npm run lint && npm test"
   },
   "keywords": [
-    "cli",
+    "auto-fix",
     "autofix",
-    "developer-tools"
+    "cli",
+    "developer-tools",
+    "dev-environment",
+    "environment-fix",
+    "doctor",
+    "diagnostics",
+    "troubleshooting",
+    "local-development",
+    "nodejs",
+    "python",
+    "docker",
+    "devops",
+    "automation",
+    "productivity"
   ],
   "author": "Krushna Raut",
   "license": "ISC",
   "type": "module",
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",

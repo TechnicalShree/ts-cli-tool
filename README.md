@@ -1,4 +1,4 @@
-# auto-fix
+![1771396480793](image/README/1771396480793.png)![1771396481454](image/README/1771396481454.png)![1771396485540](image/README/1771396485540.png)# auto-fix
 
 `auto-fix` is a TypeScript CLI that detects local development environment issues and applies safe, explainable fixes for Node, Python, and Docker-based projects.
 
@@ -33,7 +33,7 @@ npx auto-fix doctor
 Install globally:
 
 ```bash
-npm install -g auto-fix
+npm install -g @technicalshree/auto-fix
 auto-fix --help
 ```
 
