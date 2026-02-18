@@ -110,6 +110,14 @@ Rollback latest run (best-effort):
 auto-fix undo
 ```
 
+Clear global package manager caches:
+
+```bash
+auto-fix clear-npm-cache
+auto-fix clear-yarn-cache
+auto-fix clear-pnpm-cache
+```
+
 ## Commands
 
 `auto-fix [command] [flags]`
@@ -119,6 +127,9 @@ auto-fix undo
 - `plan`: prints execution plan (same as dry-run)
 - `report`: reads latest report (`--run` runs fresh first)
 - `undo`: best-effort restore using latest run snapshots
+- `clear-npm-cache`: runs `npm cache clean --force`
+- `clear-yarn-cache`: runs `yarn cache clean`
+- `clear-pnpm-cache`: runs `pnpm store prune`
 - `help`: show CLI help
 
 ## Flags (all)
@@ -201,6 +212,24 @@ Trigger run and emit JSON in one command:
 
 ```bash
 auto-fix report --run --json
+```
+
+Clear npm global cache:
+
+```bash
+auto-fix clear-npm-cache
+```
+
+Clear yarn global cache:
+
+```bash
+auto-fix clear-yarn-cache
+```
+
+Clear pnpm global cache:
+
+```bash
+auto-fix clear-pnpm-cache
 ```
 
 ## Configuration

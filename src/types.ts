@@ -21,7 +21,15 @@ export interface CliFlags {
 }
 
 export interface CommandContext {
-  command: "run" | "doctor" | "plan" | "report" | "undo";
+  command:
+    | "run"
+    | "doctor"
+    | "plan"
+    | "report"
+    | "undo"
+    | "clear-npm-cache"
+    | "clear-yarn-cache"
+    | "clear-pnpm-cache";
   cwd: string;
   runId: string;
   flags: CliFlags;

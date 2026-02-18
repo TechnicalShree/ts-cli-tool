@@ -11,6 +11,7 @@ import type { CliFlags, CommandContext } from "./types.js";
 import { readJsonFile } from "./utils/fs.js";
 import { undoLatest } from "./core/undo.js";
 import { createRenderer } from "./ui/renderer.js";
+import { runShellCommand } from "./utils/process.js";
 
 function makeRunId(): string {
   return `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;
@@ -36,6 +37,9 @@ COMMANDS
   plan         Print the exact plan that would run (no changes)
   report       Show the last run's report (use --json for machine-readable)
   undo         Best-effort rollback of the last run
+  clear-npm-cache   Clear global npm package cache
+  clear-yarn-cache  Clear global yarn package cache
+  clear-pnpm-cache  Clear global pnpm package cache
   help         Show this help message
 
 SAFETY & CONTROL
@@ -63,6 +67,9 @@ EXAMPLES
   auto-fix --kill-ports    Kill processes on default ports first
   auto-fix report --json   Print last run report as JSON
   auto-fix undo            Rollback the last run (best-effort)
+  auto-fix clear-npm-cache Clear npm cache
+  auto-fix clear-yarn-cache Clear yarn cache
+  auto-fix clear-pnpm-cache Clear pnpm cache
 
 CONFIG
   Place .autofix.yml in your project root for custom settings.
@@ -78,7 +85,15 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
 
   const [first, ...rest] = argv;
   const command: CommandContext["command"] =
-    first === "doctor" || first === "plan" || first === "report" || first === "undo" ? first : "run";
+    first === "doctor" ||
+      first === "plan" ||
+      first === "report" ||
+      first === "undo" ||
+      first === "clear-npm-cache" ||
+      first === "clear-yarn-cache" ||
+      first === "clear-pnpm-cache"
+      ? first
+      : "run";
   const args = command === "run" ? argv : rest;
 
   const flags = defaultFlags();
@@ -120,6 +135,29 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
   return { command, flags, help: false };
 }
 
+async function runCacheCommand(command: CommandContext["command"], cwd: string): Promise<boolean> {
+  const shellCommand =
+    command === "clear-npm-cache"
+      ? "npm cache clean --force"
+      : command === "clear-yarn-cache"
+        ? "yarn cache clean"
+        : "pnpm store prune";
+
+  console.log(`Running: ${shellCommand}`);
+  const result = await runShellCommand(shellCommand, cwd);
+
+  if (result.stdout.trim()) console.log(result.stdout.trim());
+  if (result.stderr.trim()) console.error(result.stderr.trim());
+
+  if (!result.success) {
+    console.error(`Command failed with exit code ${result.code}`);
+    return false;
+  }
+
+  console.log("Cache cleared successfully.");
+  return true;
+}
+
 function defaultFlags(): CliFlags {
   return {
     dryRun: false,
@@ -157,6 +195,13 @@ async function main() {
 
   const { config } = await loadConfig(cwd);
   const reportDir = path.resolve(cwd, flags.reportPath ?? config.output.report_dir);
+
+  // ── cache clear commands ──
+  if (command === "clear-npm-cache" || command === "clear-yarn-cache" || command === "clear-pnpm-cache") {
+    const ok = await runCacheCommand(command, cwd);
+    if (!ok) process.exitCode = 1;
+    return;
+  }
 
   // ── undo ──
   if (command === "undo") {
