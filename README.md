@@ -22,7 +22,24 @@
 
 ## Installation
 
-### 1) Clone and install dependencies
+### 1) Install from npm (recommended)
+
+Run directly without installing globally:
+
+```bash
+npx auto-fix doctor
+```
+
+Install globally:
+
+```bash
+npm install -g auto-fix
+auto-fix --help
+```
+
+### 2) Install from source (development)
+
+Clone and install dependencies:
 
 ```bash
 git clone <your-repo-url>
@@ -30,13 +47,13 @@ cd ts-cli-tool
 npm install
 ```
 
-### 2) Build the CLI
+Build the CLI:
 
 ```bash
 npm run build
 ```
 
-### 3) Run locally
+Run locally:
 
 ```bash
 npm start
@@ -76,6 +93,33 @@ To remove global link:
 
 ```bash
 npm unlink -g auto-fix
+```
+
+## Publish to npm
+
+1. Ensure you are logged in to npm:
+
+```bash
+npm login
+```
+
+2. Bump the version:
+
+```bash
+npm version patch
+```
+
+3. Build and validate the package contents:
+
+```bash
+npm run build
+npm pack --dry-run --cache /tmp/npm-cache-autofix
+```
+
+4. Publish:
+
+```bash
+npm publish
 ```
 
 ## Quick start
