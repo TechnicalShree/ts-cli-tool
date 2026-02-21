@@ -11,6 +11,10 @@
 - Supports gated destructive cleanup (`--deep`, `--approve`)
 - Writes run reports and snapshot metadata for rollback
 - Supports best-effort `undo` for snapshotted changes
+- Syncs `.env` files from `.env.example` templates (v1.2)
+- Detects Node/Python runtime version drift (v1.2)
+- Auto-configures VS Code Python interpreter path (v1.2)
+- Provides actionable guidance for EPERM/EBUSY file lock errors (v1.2)
 
 ## Requirements
 
@@ -381,9 +385,14 @@ npm run build
 - `src/config/`: defaults and config loading
 - `src/report/`: summary and report writing
 - `src/subsystems/`: subsystem-specific checks/fixes
+  - `environment.ts`: `.env` sync logic (v1.2)
+  - `engines.ts`: runtime version checks (v1.2)
 - `src/ui/`: terminal renderer and progress hooks
 - `dist/`: compiled JavaScript output
 - `docs/`: product requirement docs and notes
+- `test/`: test suites
+  - `smoke.test.mjs`: CLI smoke tests
+  - `v1.2.test.mjs`: v1.2 feature unit tests
 
 ## Troubleshooting
 
@@ -402,6 +411,25 @@ No report found for `report` or `undo`:
 Non-interactive environments behave conservatively:
 
 - In polyglot projects (Node + Python + Docker), non-interactive mode without `--approve` may limit execution to a safe subset
+
+## Changelog
+
+### v1.2.0
+
+- **Environment sync**: Auto-copy `.env.example` → `.env`; detect and append missing keys
+- **Engine version checks**: Validate Node (`.nvmrc`) and Python (`.python-version`) versions before dependency install
+- **VS Code integration**: Auto-configure `python.defaultInterpreterPath` when `.venv` exists
+- **EPERM handling**: Actionable error messages for file lock failures in node steps
+- **Snapshot improvements**: Non-destructive steps with declared snapshot paths are now backed up
+- **Undo fix**: Nested file paths (e.g., `.vscode/settings.json`) are now restored correctly
+- **Test coverage**: Added 8 unit tests for v1.2 features
+
+### v1.1.x
+
+- Initial release with Node, Python, Docker detection and safe fix execution
+- Polyglot project support with interactive confirmation
+- Run reports, snapshots, and best-effort undo
+- CLI help, version banner, and configurable `.autofix.yml`
 
 ## License
 
