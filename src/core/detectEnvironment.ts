@@ -47,7 +47,7 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
         devDependencies?: Record<string, string>;
       };
       scripts = Object.keys(parsed.scripts ?? {});
-      const deps = { ...(parsed.dependencies ?? {}), ...(parsed.devDependencies ?? {}) };
+      const deps = { ...parsed.dependencies, ...parsed.devDependencies };
       hasNext = Boolean(deps.next) || scripts.some((s) => s.toLowerCase().includes("next"));
       hasVite = Boolean(deps.vite) || scripts.some((s) => s.toLowerCase().includes("vite"));
     } catch {
@@ -78,11 +78,24 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
 
   const lockfileCorrupted = await detectLockfileCorruption(cwd);
 
+  const hasEnv = await fileExists(path.join(cwd, ".env"));
+  const hasEnvExample = await fileExists(path.join(cwd, ".env.example"));
+
+  const nodeVersionCandidates = [".nvmrc", ".node-version"];
+  const nodeVersionFile = (
+    await Promise.all(
+      nodeVersionCandidates.map(async (name) => ((await fileExists(path.join(cwd, name))) ? name : null)),
+    )
+  ).find((v) => Boolean(v)) ?? undefined;
+
+  const pythonVersionFile = (await fileExists(path.join(cwd, ".python-version"))) ? ".python-version" : undefined;
+
   const issues: string[] = [];
   if (hasPackage && !(await fileExists(path.join(cwd, "node_modules")))) issues.push("node_modules directory missing");
   if ((hasPyproject || requirements) && !venvExists) issues.push("python virtual environment missing");
   if (composeFile) issues.push("docker compose project detected (state may require refresh)");
   if (lockfileCorrupted) issues.push("lockfile appears corrupted; frozen installs likely to fail");
+  if (hasEnvExample && !hasEnv) issues.push(".env file missing but .env.example exists");
 
   return {
     node: {
@@ -103,6 +116,8 @@ export async function detectEnvironment(cwd: string, config: Config): Promise<En
       venvExists,
     },
     docker: { detected: Boolean(composeFile), composeFile },
+    environment: { hasEnv, hasEnvExample },
+    engines: { nodeVersionFile, pythonVersionFile },
     issues,
   };
 }

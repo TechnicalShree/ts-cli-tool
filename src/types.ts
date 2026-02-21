@@ -1,4 +1,4 @@
-export type Subsystem = "node" | "python" | "docker" | "checks" | "meta";
+export type Subsystem = "node" | "python" | "docker" | "checks" | "meta" | "environment" | "engines";
 
 export type StepStatus = "planned" | "proposed" | "running" | "success" | "failed" | "skipped" | "partial";
 
@@ -22,14 +22,14 @@ export interface CliFlags {
 
 export interface CommandContext {
   command:
-    | "run"
-    | "doctor"
-    | "plan"
-    | "report"
-    | "undo"
-    | "clear-npm-cache"
-    | "clear-yarn-cache"
-    | "clear-pnpm-cache";
+  | "run"
+  | "doctor"
+  | "plan"
+  | "report"
+  | "undo"
+  | "clear-npm-cache"
+  | "clear-yarn-cache"
+  | "clear-pnpm-cache";
   cwd: string;
   runId: string;
   flags: CliFlags;
@@ -45,7 +45,7 @@ export interface FixStep {
   id: string;
   title: string;
   subsystem: Subsystem;
-  phase: "detect" | "ports" | "docker" | "node" | "python" | "checks";
+  phase: "detect" | "ports" | "docker" | "node" | "python" | "checks" | "environment" | "engines";
   checkKind?: CheckKind;
   rationale: string;
   commands: string[];
@@ -83,6 +83,14 @@ export interface EnvDetection {
   docker: {
     detected: boolean;
     composeFile?: string;
+  };
+  environment: {
+    hasEnv: boolean;
+    hasEnvExample: boolean;
+  };
+  engines: {
+    nodeVersionFile?: string;
+    pythonVersionFile?: string;
   };
   issues: string[];
 }

@@ -93,7 +93,7 @@ export async function runAutoFix(
     ctx.flags.focus = "node";
   }
 
-  const plan = buildPlan(detection, config, ctx.flags);
+  const plan = await buildPlan(ctx.cwd, detection, config, ctx.flags);
   const guarded = applyPolyglotGuard(ctx, detection, plan);
   callbacks?.onPlanReady?.(guarded.steps);
 

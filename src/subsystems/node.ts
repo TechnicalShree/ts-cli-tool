@@ -117,7 +117,7 @@ export function buildNodeSteps(detection: EnvDetection, config: Config, flags: C
       title: "IRREVERSIBLE: Remove node_modules for clean reinstall",
       subsystem: "node",
       phase: "node",
-      rationale: "Deep cleanup requested to resolve dependency drift.",
+      rationale: "Deep cleanup requested. If this fails with EPERM, close your IDE or dev servers to release file locks.",
       commands: ["rm -rf node_modules", `${pm} install`],
       destructive: true,
       irreversible: true,

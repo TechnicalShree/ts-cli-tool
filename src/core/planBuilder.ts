@@ -3,6 +3,8 @@ import { buildNodeSteps } from "../subsystems/node.js";
 import { buildPythonSteps } from "../subsystems/python.js";
 import { buildDockerSteps } from "../subsystems/docker.js";
 import { buildCheckSteps } from "../subsystems/checks.js";
+import { buildEnvSteps } from "../subsystems/environment.js";
+import { buildEngineSteps } from "../subsystems/engines.js";
 
 export function buildPortSteps(flags: CliFlags, config: Config): FixStep[] {
   if (!flags.killPorts) return [];
@@ -24,10 +26,12 @@ export function buildPortSteps(flags: CliFlags, config: Config): FixStep[] {
   ];
 }
 
-export function buildPlan(detection: EnvDetection, config: Config, flags: CliFlags): FixStep[] {
+export async function buildPlan(cwd: string, detection: EnvDetection, config: Config, flags: CliFlags): Promise<FixStep[]> {
   const steps: FixStep[] = [];
 
-  // strict order: ports -> docker -> node -> python -> checks(format, lint, test)
+  // strict order: env -> engines -> ports -> docker -> node -> python -> checks(format, lint, test)
+  steps.push(...await buildEnvSteps(cwd, detection, config, flags));
+  steps.push(...await buildEngineSteps(cwd, detection, config, flags));
   steps.push(...buildPortSteps(flags, config));
 
   if (flags.focus === "all" || flags.focus === "docker") steps.push(...buildDockerSteps(detection, config, flags));

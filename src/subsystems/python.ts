@@ -66,5 +66,23 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
     });
   }
 
+  // PRD v1.2: IDE Integration Auto-Configuration for VS Code
+  steps.push({
+    id: "python-vscode-sync",
+    title: "Sync Python virtual environment with VS Code",
+    subsystem: "python",
+    phase: "python",
+    rationale: "VS Code needs to know the correct virtual environment path to prevent linting errors.",
+    commands: [
+      `mkdir -p .vscode && node -e "const fs=require('fs');const p='.vscode/settings.json';let s={};try{s=JSON.parse(fs.readFileSync(p,'utf8'))}catch(e){}s['python.defaultInterpreterPath']='${config.python.venv_path}';fs.writeFileSync(p,JSON.stringify(s,null,2))"`
+    ],
+    destructive: false,
+    irreversible: false,
+    undoable: true,
+    snapshotPaths: [".vscode/settings.json"],
+    undoHints: [{ action: "Restore .vscode/settings.json" }],
+    status: "planned",
+  });
+
   return steps;
 }
