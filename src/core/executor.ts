@@ -93,8 +93,9 @@ export async function executeSteps(
     current.status = "running";
     hooks?.onStepStart(current);
 
-    if (step.destructive) {
-      const snaps = await snapshotPathsForStep(ctx.cwd, path.join(snapshotDir, ctx.runId), step.id, snapshotCandidates(step));
+    if (step.destructive || (step.snapshotPaths && step.snapshotPaths.length > 0)) {
+      const candidates = step.destructive ? snapshotCandidates(step) : step.snapshotPaths ?? [];
+      const snaps = await snapshotPathsForStep(ctx.cwd, path.join(snapshotDir, ctx.runId), step.id, candidates);
       current.snapshotPaths = snaps;
     }
 
@@ -130,7 +131,12 @@ export async function executeSteps(
     current.output = commandOutputs.join("\n\n");
     if (failed) {
       current.status = "failed";
-      current.error = "One or more commands failed";
+      const combinedOutput = commandOutputs.join(" ");
+      if (/EPERM|EBUSY|EACCES/.test(combinedOutput) && (step.subsystem === "node" || step.phase === "node")) {
+        current.error = "Permission/lock error (EPERM/EBUSY). Close your IDE, dev servers, or file watchers and retry.";
+      } else {
+        current.error = "One or more commands failed";
+      }
     } else {
       current.status = "success";
     }

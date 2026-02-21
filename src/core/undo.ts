@@ -1,5 +1,5 @@
 import path from "node:path";
-import { cp } from "node:fs/promises";
+import { cp, mkdir } from "node:fs/promises";
 import type { RunReport, UndoEntry } from "../types.js";
 import { fileExists, readJsonFile } from "../utils/fs.js";
 
@@ -34,9 +34,14 @@ export async function undoLatest(reportPath: string, cwd: string): Promise<{ rep
         missingSnapshot.push(snap);
         continue;
       }
+      // The snapshot filename encodes the original relative path with separators replaced by `_`.
+      // Extract just the filename portion (after the stepId directory) and reverse the encoding.
       const base = path.basename(snap);
-      const target = path.join(cwd, base.replace(/_/g, "/"));
+      const relativePath = base.replace(/_/g, path.sep);
+      const target = path.join(cwd, relativePath);
       try {
+        const targetDir = path.dirname(target);
+        await mkdir(targetDir, { recursive: true });
         await cp(snap, target, { recursive: true, force: true });
         restored.push(target);
       } catch {
