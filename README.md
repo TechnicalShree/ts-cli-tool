@@ -166,6 +166,56 @@ auto-fix clear-yarn-cache
 auto-fix clear-pnpm-cache
 ```
 
+## v1.2 Features
+
+### Environment Variable Synchronization
+
+`auto-fix` detects `.env.example` files and helps keep your local `.env` in sync:
+
+- **Missing `.env`**: If `.env.example` exists but `.env` does not, auto-fix will copy it automatically.
+- **Missing keys**: If both files exist, auto-fix compares the keys and appends any missing keys from `.env.example` to your `.env` with empty values.
+- Changes to `.env` are snapshotted for undo coverage.
+
+```bash
+# See env sync in action
+auto-fix plan
+# Output: ● Copy .env.example to .env
+# Output: ● Append 2 missing key(s) to .env
+```
+
+### Runtime Engine Version Checks
+
+`auto-fix` validates that your local Node.js and Python versions match what the project expects:
+
+- **Node**: Reads `.nvmrc` or `.node-version` and compares the major version against `process.version`. Emits a warning with suggested action (`nvm use`).
+- **Python**: Reads `.python-version` and flags a version drift warning.
+- These checks run **before** dependency installations to catch mismatches early.
+- Engine checks fire based on version file existence alone — no `package.json` or `pyproject.toml` required.
+
+```bash
+auto-fix plan
+# Output: ● Node version drift detected: expected ~18, running v22.x — Run nvm use
+# Output: ● Python version drift: project expects 3.11
+```
+
+### VS Code Python Integration
+
+When a Python virtual environment (`.venv`) exists or is being created, `auto-fix` automatically configures VS Code to use it:
+
+- Sets `python.defaultInterpreterPath` in `.vscode/settings.json`
+- Prevents false-positive Pylance/Pyright linting errors for new developers
+- The change is snapshotted for undo coverage
+
+### EPERM/EBUSY Error Guidance
+
+When `node_modules` cleanup or dependency installation fails due to file locks (common on Windows and macOS), `auto-fix` now provides specific, actionable error messages:
+
+```
+✖ Permission/lock error (EPERM/EBUSY). Close your IDE, dev servers, or file watchers and retry.
+```
+
+This replaces the previous generic "One or more commands failed" message.
+
 ## Commands
 
 `auto-fix [command] [flags]`
