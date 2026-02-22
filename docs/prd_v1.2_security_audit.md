@@ -2,7 +2,7 @@
 
 Date: 2026-02-22
 Scope: Critical vulnerabilities, high-risk bugs, and end-user command safety issues in current implementation.
-Last verification run: 2026-02-22 (fresh build + full retest, latest)
+Last verification run: 2026-02-22 11:28 IST (fresh build + full retest, latest)
 
 ## Executive summary
 
@@ -45,9 +45,13 @@ Last verification run: 2026-02-22 (fresh build + full retest, latest)
   - Repro status: `REL003_SPACE_PATH=OK`
 - `REL-004`: Resolved.
   - Config-level sanitization strips unsafe command/path entries at load time:
-    - `src/config/loadConfig.ts:46` to `src/config/loadConfig.ts:57`
+    - Character allowlist: `src/config/loadConfig.ts:40` (`SAFE_CHARS_RE`)
+    - Known binary allowlist: `src/config/loadConfig.ts:43` to `src/config/loadConfig.ts:51` (`KNOWN_TOOL_BINARIES`)
+    - Combined validator: `src/config/loadConfig.ts:53` to `src/config/loadConfig.ts:57` (`isSafeConfigCommand`)
+    - Sanitize at load: `src/config/loadConfig.ts:63` to `src/config/loadConfig.ts:74` (`sanitizeConfig`)
   - Check-level validation now uses a strict command allowlist before execution:
-    - `src/subsystems/checks.ts:61` to `src/subsystems/checks.ts:64`
+    - `src/subsystems/checks.ts:60` to `src/subsystems/checks.ts:75` (`KNOWN_TOOL_BINARIES`)
+    - `src/subsystems/checks.ts:83` to `src/subsystems/checks.ts:98` (`isSafeCommand`)
   - Repro status after fresh build: `REL004_CONFIG_INJECTION=OK`
 - `REL-005`: Resolved.
   - Docker warning now gated on detected Docker environment: `src/core/run.ts:110`
@@ -142,10 +146,15 @@ User impact:
 Risk:
 - Values from `.autofix.yml` are merged and used directly as shell command fragments.
 
-Code evidence:
-- `src/config/loadConfig.ts:44`
-- `src/subsystems/node.ts:99` to `src/subsystems/node.ts:107`
-- `src/subsystems/checks.ts:59` to `src/subsystems/checks.ts:102`
+Code evidence (original vulnerable locations):
+- `src/config/loadConfig.ts:44` (mergeDeep without sanitization)
+- `src/subsystems/node.ts:104` to `src/subsystems/node.ts:133` (cache dir interpolation)
+- `src/subsystems/checks.ts:100` to `src/subsystems/checks.ts:208` (python tool command execution)
+
+Fix locations:
+- `src/config/loadConfig.ts:40-74` (SAFE_CHARS_RE, KNOWN_TOOL_BINARIES, isSafeConfigCommand, sanitizeConfig)
+- `src/subsystems/checks.ts:60-98` (KNOWN_TOOL_BINARIES, isSafeCommand — defense-in-depth at execution layer)
+- `src/subsystems/node.ts:105` (isSafePath gate on cache dirs)
 
 Observed repro evidence:
 - Cache dir entry `boom; touch /tmp/autofix-config-marker` executed the injected `touch` command.
