@@ -36,11 +36,49 @@ async function findConfigPath(cwd: string): Promise<string | null> {
     current = parent;
   }
 }
+/** Allowlist pattern for safe characters in config command/path strings */
+const SAFE_CHARS_RE = /^[a-zA-Z0-9._\-/@:=*\s]+$/;
+
+/** Known dev tool binaries that are safe to auto-execute */
+const KNOWN_TOOL_BINARIES = new Set([
+  "ruff", "black", "autopep8", "yapf", "isort", "pyink",
+  "flake8", "pylint", "pyflakes", "pydocstyle", "pycodestyle", "bandit", "vulture",
+  "mypy", "pyright", "pytype", "pyre",
+  "pytest", "unittest", "nose2", "tox", "nox", "coverage",
+  "pip", "uv", "poetry", "pipenv", "pdm",
+  "python", "python3", "pre-commit", "sphinx-build",
+  "npm", "npx", "pnpm", "yarn",
+]);
+
+function isSafeConfigCommand(cmd: string): boolean {
+  if (!SAFE_CHARS_RE.test(cmd)) return false;
+  const binary = cmd.trim().split(/\s+/)[0].replace(/^.*\//, "");
+  return KNOWN_TOOL_BINARIES.has(binary);
+}
+
+/**
+ * REL-004: Defense-in-depth — strip unsafe values from config at load time.
+ * Uses character allowlist + known binary allowlist to prevent arbitrary command execution.
+ */
+function sanitizeConfig(config: Config): Config {
+  // Sanitize python tool command arrays
+  if (config.python?.tools) {
+    config.python.tools.format = config.python.tools.format.filter(isSafeConfigCommand);
+    config.python.tools.lint = config.python.tools.lint.filter(isSafeConfigCommand);
+    config.python.tools.test = config.python.tools.test.filter(isSafeConfigCommand);
+  }
+  // Sanitize node cache directory names (path-only, no binary check needed)
+  if (config.node?.caches?.directories) {
+    config.node.caches.directories = config.node.caches.directories.filter((d) => SAFE_CHARS_RE.test(d) && !d.includes(".."));
+  }
+  return config;
+}
 
 export async function loadConfig(cwd: string): Promise<{ config: Config; path: string | null }> {
   const cfgPath = await findConfigPath(cwd);
   if (!cfgPath) return { config: defaultConfig, path: null };
   const raw = await readFile(cfgPath, "utf8");
   const user = parse(raw) as Partial<Config>;
-  return { config: mergeDeep(defaultConfig, user), path: cfgPath };
+  const merged = mergeDeep(defaultConfig, user);
+  return { config: sanitizeConfig(merged), path: cfgPath };
 }

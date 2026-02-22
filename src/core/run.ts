@@ -107,7 +107,7 @@ export async function runAutoFix(
   if (gitignoreUpdated) guarded.warnings.push("Added .autofix/ to .gitignore");
   if (!writable) guarded.warnings.push(`.autofix not writable; using temp snapshot dir: ${snapshotDir}`);
 
-  if (config.docker.safe_down && guarded.steps.some((s) => s.checkKind === "test")) {
+  if (detection.docker.detected && config.docker.safe_down && guarded.steps.some((s) => s.checkKind === "test")) {
     guarded.warnings.push("Tests may require services; run `docker compose up -d` and re-run tests.");
   }
 

@@ -1,4 +1,5 @@
 import type { CliFlags, Config, EnvDetection, FixStep } from "../types.js";
+import { shellQuote } from "../utils/process.js";
 
 function installCommand(prefer: Config["python"]["install"]["prefer"]): string {
   switch (prefer) {
@@ -18,6 +19,7 @@ function installCommand(prefer: Config["python"]["install"]["prefer"]): string {
 export function buildPythonSteps(detection: EnvDetection, config: Config, flags: CliFlags): FixStep[] {
   if (!detection.python.detected) return [];
   const steps: FixStep[] = [];
+  const quotedVenv = shellQuote(config.python.venv_path);
 
   if (!detection.python.venvExists) {
     steps.push({
@@ -26,7 +28,7 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
       subsystem: "python",
       phase: "python",
       rationale: "Python project detected without configured virtual environment.",
-      commands: [`python3 -m venv ${config.python.venv_path}`],
+      commands: [`python3 -m venv ${quotedVenv}`],
       destructive: false,
       irreversible: false,
       undoable: false,
@@ -56,7 +58,7 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
       subsystem: "python",
       phase: "python",
       rationale: "Deep cleanup for persistent Python environment drift.",
-      commands: [`rm -rf ${config.python.venv_path}`, `python3 -m venv ${config.python.venv_path}`],
+      commands: [`rm -rf ${quotedVenv}`, `python3 -m venv ${quotedVenv}`],
       destructive: true,
       irreversible: true,
       irreversibleReason: "cannot restore environment state fully",
@@ -68,8 +70,10 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
 
   // PRD v1.2: IDE Integration Auto-Configuration for VS Code
   // Only sync when .venv exists or is being created by a preceding step
+  // REL-002: Skip write if existing settings.json can't be parsed (JSONC) to avoid clobbering
   const venvWillExist = detection.python.venvExists || steps.some((s) => s.id === "python-create-venv");
   if (venvWillExist) {
+    const escapedVenv = config.python.venv_path.replace(/'/g, "\\'");
     steps.push({
       id: "python-vscode-sync",
       title: "Sync Python virtual environment with VS Code",
@@ -77,7 +81,7 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
       phase: "python",
       rationale: "VS Code needs to know the correct virtual environment path to prevent linting errors.",
       commands: [
-        `mkdir -p .vscode && node -e "const fs=require('fs');const p='.vscode/settings.json';let s={};try{s=JSON.parse(fs.readFileSync(p,'utf8'))}catch(e){}s['python.defaultInterpreterPath']='${config.python.venv_path}';fs.writeFileSync(p,JSON.stringify(s,null,2))"`
+        `mkdir -p .vscode && node -e "const fs=require('fs');const p='.vscode/settings.json';let s;try{s=JSON.parse(fs.readFileSync(p,'utf8'))}catch(e){if(fs.existsSync(p)){console.log('SKIP: settings.json exists but is not valid JSON (may contain comments). Skipping to preserve your config.');process.exit(0)}s={}}s['python.defaultInterpreterPath']='${escapedVenv}';fs.writeFileSync(p,JSON.stringify(s,null,2))"`
       ],
       destructive: false,
       irreversible: false,
@@ -90,3 +94,4 @@ export function buildPythonSteps(detection: EnvDetection, config: Config, flags:
 
   return steps;
 }
+

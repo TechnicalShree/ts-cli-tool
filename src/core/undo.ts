@@ -38,7 +38,15 @@ export async function undoLatest(reportPath: string, cwd: string): Promise<{ rep
       // Extract just the filename portion (after the stepId directory) and reverse the encoding.
       const base = path.basename(snap);
       const relativePath = base.replace(/_/g, path.sep);
-      const target = path.join(cwd, relativePath);
+      const target = path.resolve(cwd, relativePath);
+
+      // SEC-002: Containment check — reject any path that escapes project root
+      const normalizedCwd = path.resolve(cwd) + path.sep;
+      if (!target.startsWith(normalizedCwd) && target !== path.resolve(cwd)) {
+        failed.push(`${target} (blocked: path traversal outside project root)`);
+        continue;
+      }
+
       try {
         const targetDir = path.dirname(target);
         await mkdir(targetDir, { recursive: true });

@@ -1,7 +1,13 @@
 import path from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import type { CliFlags, Config, EnvDetection, FixStep } from "../types.js";
 import { fileExists } from "../utils/fs.js";
+import { shellQuote } from "../utils/process.js";
+
+/** Strict env key sanitizer: only allow [A-Z0-9_] */
+function sanitizeEnvKey(key: string): string {
+    return key.replace(/[^A-Z0-9_]/gi, "");
+}
 
 async function parseEnvKeys(filePath: string): Promise<string[]> {
     try {
@@ -12,7 +18,8 @@ async function parseEnvKeys(filePath: string): Promise<string[]> {
             if (!trimmed || trimmed.startsWith("#")) continue;
             const idx = trimmed.indexOf("=");
             if (idx > 0) {
-                keys.push(trimmed.substring(0, idx).trim());
+                const key = sanitizeEnvKey(trimmed.substring(0, idx).trim());
+                if (key) keys.push(key);
             }
         }
         return keys;
@@ -41,19 +48,19 @@ export async function buildEnvSteps(cwd: string, detection: EnvDetection, config
             subsystem: "environment",
             phase: "environment",
             rationale: ".env is missing but .env.example exists.",
-            commands: [`cp ${envExamplePath} ${envPath}`],
+            commands: [`cp ${shellQuote(envExamplePath)} ${shellQuote(envPath)}`],
             destructive: false,
             irreversible: false,
             undoable: true,
-            snapshotPaths: [".env.example"], // Snapshot the example file as breadcrumb
-            undoHints: [{ action: "Delete .env", command: `rm -f ${envPath}` }],
+            snapshotPaths: [".env.example"],
+            undoHints: [{ action: "Delete .env", command: `rm -f ${shellQuote(envPath)}` }],
             status: "planned",
         });
     } else {
         const missingKeys = await findMissingKeys(envPath, envExamplePath);
         if (missingKeys.length > 0) {
-            // Create a small shell script command to append missing keys safely
-            const appends = missingKeys.map((k) => `echo "${k}=" >> ${envPath}`).join(" && ");
+            // Keys are already sanitized to [A-Z0-9_] only — safe for shell interpolation
+            const appends = missingKeys.map((k) => `echo ${shellQuote(`${k}=`)} >> ${shellQuote(envPath)}`).join(" && ");
             steps.push({
                 id: "env-sync-append-missing",
                 title: `Append ${missingKeys.length} missing key(s) to .env`,

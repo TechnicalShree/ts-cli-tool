@@ -1,7 +1,12 @@
 import type { CliFlags, Config, EnvDetection, FixStep } from "../types.js";
+import { isSafePath, shellQuote } from "../utils/process.js";
+const ALLOWED_PMS = new Set(["npm", "pnpm", "yarn"]);
 
 function choosePm(detected: EnvDetection["node"]["packageManager"], configured: Config["node"]["package_manager"]) {
-  if (configured !== "auto") return configured;
+  if (configured !== "auto") {
+    // SEC-001: Validate package_manager from config against strict allowlist
+    return ALLOWED_PMS.has(configured) ? configured : "npm";
+  }
   if (detected === "unknown") return "npm";
   return detected;
 }
@@ -97,13 +102,29 @@ export function buildNodeSteps(detection: EnvDetection, config: Config, flags: C
   }
 
   for (const cacheDir of config.node.caches.directories) {
+    if (!isSafePath(cacheDir)) {
+      steps.push({
+        id: `node-clean-cache-${cacheDir.replace(/[^a-z0-9]/gi, "-")}`,
+        title: `SKIPPED: Unsafe cache directory name: ${cacheDir}`,
+        subsystem: "node",
+        phase: "node",
+        rationale: "Cache directory name contains suspicious characters and was rejected for safety.",
+        commands: [],
+        destructive: false,
+        irreversible: false,
+        undoable: false,
+        status: "proposed",
+        proposedReason: `Directory name '${cacheDir}' contains shell metacharacters. Rename it or clean manually.`,
+      });
+      continue;
+    }
     steps.push({
       id: `node-clean-cache-${cacheDir.replace(/[^a-z0-9]/gi, "-")}`,
       title: `Clean cache directory ${cacheDir}`,
       subsystem: "node",
       phase: "node",
       rationale: "Configured cache directory cleanup.",
-      commands: [`rm -rf ${cacheDir}`],
+      commands: [`rm -rf ${shellQuote(cacheDir)}`],
       destructive: false,
       irreversible: false,
       undoable: false,

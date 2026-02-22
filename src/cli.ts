@@ -84,16 +84,19 @@ function parseArgs(argv: string[]): { command: CommandContext["command"]; flags:
   if (hasHelp) return { command: "run", flags: defaultFlags(), help: true };
 
   const [first, ...rest] = argv;
-  const command: CommandContext["command"] =
-    first === "doctor" ||
-      first === "plan" ||
-      first === "report" ||
-      first === "undo" ||
-      first === "clear-npm-cache" ||
-      first === "clear-yarn-cache" ||
-      first === "clear-pnpm-cache"
-      ? first
-      : "run";
+  const knownCommands = ["doctor", "plan", "report", "undo", "clear-npm-cache", "clear-yarn-cache", "clear-pnpm-cache", "run"];
+  let command: CommandContext["command"];
+
+  if (first === "doctor" || first === "plan" || first === "report" || first === "undo" ||
+    first === "clear-npm-cache" || first === "clear-yarn-cache" || first === "clear-pnpm-cache") {
+    command = first;
+  } else if (first === "run" || first.startsWith("-")) {
+    command = "run";
+  } else {
+    // REL-001: Unknown command — fail explicitly instead of silent fallback to `run`
+    console.error(`Unknown command: "${first}"\nAvailable commands: ${knownCommands.join(", ")}\nRun 'auto-fix --help' for usage information.`);
+    process.exit(1);
+  }
   const args = command === "run" ? argv : rest;
 
   const flags = defaultFlags();
