@@ -78,7 +78,8 @@ export async function loadConfig(cwd: string): Promise<{ config: Config; path: s
   const cfgPath = await findConfigPath(cwd);
   if (!cfgPath) return { config: defaultConfig, path: null };
   const raw = await readFile(cfgPath, "utf8");
-  const user = parse(raw) as Partial<Config>;
+  const user = parse(raw) as Partial<Config> | null;
+  if (!user || typeof user !== "object") return { config: defaultConfig, path: cfgPath };
   const merged = mergeDeep(defaultConfig, user);
   return { config: sanitizeConfig(merged), path: cfgPath };
 }
